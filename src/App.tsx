@@ -86,7 +86,7 @@ function App() {
 
 	return (
 		<>
-			{!isAllowed && <p>Camera Permission Denied</p>}
+			{isAllowed || <p>Camera Permission Denied</p>}
 			{isLoading && <p>Model Loading...</p>}
 			<div
 				style={{
