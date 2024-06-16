@@ -23,14 +23,19 @@ const useHandpose = (
 	videoRef: RefObject<HTMLVideoElement>,
 	canvasRef: RefObject<HTMLCanvasElement>,
 ) => {
+	const [isLoading, setIsLoading] = useState(false);
 	const [model, setModel] = useState<handpose.HandPose>();
+
 	useEffect(() => {
 		const loadHandpose = async () => {
 			const net = await handpose.load();
 			setModel(net);
 		};
 
-		loadHandpose();
+		setIsLoading(true);
+		loadHandpose().finally(() => {
+			setIsLoading(false)
+		});
 	}, []);
 
 	useEffect(() => {
@@ -60,16 +65,21 @@ const useHandpose = (
 		const interval = setInterval(detect, 100); // 0.1秒ごとに検出
 		return () => clearInterval(interval);
 	}, [model, videoRef, canvasRef]);
+
+	return {
+		isLoading,
+	}
 };
 
 function App() {
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	useVideo(videoRef);
-	useHandpose(videoRef, canvasRef);
+	const { isLoading } = useHandpose(videoRef, canvasRef);
 
 	return (
 		<>
+			{isLoading && <p>Model Loading...</p>}
 			<div
 				style={{
 					position: "relative",
