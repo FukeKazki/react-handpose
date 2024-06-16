@@ -4,6 +4,7 @@ import * as handpose from "@tensorflow-models/handpose";
 import "@tensorflow/tfjs-backend-webgl";
 
 const useVideo = (videoRef: RefObject<HTMLVideoElement>) => {
+	const [isAllowed, setIsAllowed] = useState(false);
 	useEffect(() => {
 		const setupCamera = async () => {
 			if (!videoRef.current) return;
@@ -15,8 +16,14 @@ const useVideo = (videoRef: RefObject<HTMLVideoElement>) => {
 			}
 		};
 
-		setupCamera();
+		setupCamera().then(() => {
+			setIsAllowed(true);
+		});
 	}, [videoRef]);
+
+	return {
+		isAllowed,
+	}
 };
 
 const useHandpose = (
@@ -74,11 +81,12 @@ const useHandpose = (
 function App() {
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
-	useVideo(videoRef);
+	const { isAllowed } = useVideo(videoRef);
 	const { isLoading } = useHandpose(videoRef, canvasRef);
 
 	return (
 		<>
+			{!isAllowed && <p>Camera Permission Denied</p>}
 			{isLoading && <p>Model Loading...</p>}
 			<div
 				style={{
