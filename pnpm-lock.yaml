@@ -11,6 +11,9 @@ importers:
       '@tensorflow-models/face-landmarks-detection':
         specifier: ^1.0.6
         version: 1.0.6(@mediapipe/face_mesh@0.4.1633559619)(@tensorflow-models/face-detection@1.0.3(@mediapipe/face_detection@0.4.1646425229)(@tensorflow/tfjs-backend-webgl@4.22.0(@tensorflow/tfjs-core@4.22.0))(@tensorflow/tfjs-converter@4.22.0(@tensorflow/tfjs-core@4.22.0))(@tensorflow/tfjs-core@4.22.0))(@tensorflow/tfjs-backend-webgl@4.22.0(@tensorflow/tfjs-core@4.22.0))(@tensorflow/tfjs-converter@4.22.0(@tensorflow/tfjs-core@4.22.0))(@tensorflow/tfjs-core@4.22.0)
+      '@tensorflow-models/hand-pose-detection':
+        specifier: ^2.0.1
+        version: 2.0.1(@mediapipe/hands@0.4.1675469240)(@tensorflow/tfjs-backend-webgl@4.22.0(@tensorflow/tfjs-core@4.22.0))(@tensorflow/tfjs-converter@4.22.0(@tensorflow/tfjs-core@4.22.0))(@tensorflow/tfjs-core@4.22.0)
       '@tensorflow-models/handpose':
         specifier: ^0.1.0
         version: 0.1.0(@tensorflow/tfjs-backend-webgl@4.22.0(@tensorflow/tfjs-core@4.22.0))(@tensorflow/tfjs-converter@4.22.0(@tensorflow/tfjs-core@4.22.0))(@tensorflow/tfjs-core@4.22.0)
@@ -366,6 +369,9 @@ packages:
   '@mediapipe/face_mesh@0.4.1633559619':
     resolution: {integrity: sha512-Vc8cdjxS5+O2gnjWH9KncYpUCVXT0h714KlWAsyqJvJbIgUJBqpppbIx8yWcAzBDxm/5cYSuBI5p5ySIPxzcEg==}
 
+  '@mediapipe/hands@0.4.1675469240':
+    resolution: {integrity: sha512-GxoZvL1mmhJxFxjuyj7vnC++JIuInGznHBin5c7ZSq/RbcnGyfEcJrkM/bMu5K1Mz/2Ko+vEX6/+wewmEHPrHg==}
+
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
     engines: {node: '>= 8'}
@@ -474,6 +480,14 @@ packages:
       '@tensorflow/tfjs-backend-webgl': ^4.13.0
       '@tensorflow/tfjs-converter': ^4.13.0
       '@tensorflow/tfjs-core': ^4.13.0
+
+  '@tensorflow-models/hand-pose-detection@2.0.1':
+    resolution: {integrity: sha512-zRA+jz2qOq5FMcyqSFxaQyi6T4YNbMbQhd6SQMI791FQ8yYj23kLgYa73g2NssR5AmM/2ATu9Vcjnf7LUrVLOQ==}
+    peerDependencies:
+      '@mediapipe/hands': ~0.4.0
+      '@tensorflow/tfjs-backend-webgl': ^4.9.0
+      '@tensorflow/tfjs-converter': ^4.9.0
+      '@tensorflow/tfjs-core': ^4.9.0
 
   '@tensorflow-models/handpose@0.1.0':
     resolution: {integrity: sha512-ziLkR2c2eaylyi/UAaQqvg34nPiw3qL8Pa8ihXyFB3jvlZFXIqVkMJAAaqFBBUjzHMD76x7dhmSxscivCrbekg==}
@@ -1611,6 +1625,8 @@ snapshots:
 
   '@mediapipe/face_mesh@0.4.1633559619': {}
 
+  '@mediapipe/hands@0.4.1675469240': {}
+
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
       '@nodelib/fs.stat': 2.0.5
@@ -1688,6 +1704,15 @@ snapshots:
       '@tensorflow/tfjs-converter': 4.22.0(@tensorflow/tfjs-core@4.22.0)
       '@tensorflow/tfjs-core': 4.22.0
       rimraf: 3.0.2
+
+  '@tensorflow-models/hand-pose-detection@2.0.1(@mediapipe/hands@0.4.1675469240)(@tensorflow/tfjs-backend-webgl@4.22.0(@tensorflow/tfjs-core@4.22.0))(@tensorflow/tfjs-converter@4.22.0(@tensorflow/tfjs-core@4.22.0))(@tensorflow/tfjs-core@4.22.0)':
+    dependencies:
+      '@mediapipe/hands': 0.4.1675469240
+      '@tensorflow/tfjs-backend-webgl': 4.22.0(@tensorflow/tfjs-core@4.22.0)
+      '@tensorflow/tfjs-converter': 4.22.0(@tensorflow/tfjs-core@4.22.0)
+      '@tensorflow/tfjs-core': 4.22.0
+      rimraf: 3.0.2
+      tslib: 2.6.3
 
   '@tensorflow-models/handpose@0.1.0(@tensorflow/tfjs-backend-webgl@4.22.0(@tensorflow/tfjs-core@4.22.0))(@tensorflow/tfjs-converter@4.22.0(@tensorflow/tfjs-core@4.22.0))(@tensorflow/tfjs-core@4.22.0)':
     dependencies:
