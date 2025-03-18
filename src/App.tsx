@@ -225,7 +225,7 @@ function App() {
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const { isAllowed } = useVideo(videoRef);
-	const [activeTab, setActiveTab] = useState<TabType>("hand");
+	const [activeTab, setActiveTab] = useState<TabType>("face");
 	
 	const { isLoading: isHandLoading } = useHandpose(
 		activeTab === "hand" ? videoRef : { current: null },
@@ -240,45 +240,25 @@ function App() {
 	const isLoading = activeTab === "hand" ? isHandLoading : isFaceLoading;
 
 	return (
-		<>
-			{isAllowed || <p>Camera Permission Denied</p>}
-			{isLoading && <p>Model Loading...</p>}
-			
-			<div style={{ marginBottom: "16px" }}>
-				<button 
-					onClick={() => setActiveTab("hand")}
-					style={{ 
-						padding: "8px 16px", 
-						backgroundColor: activeTab === "hand" ? "#3498db" : "#f1f1f1",
-						color: activeTab === "hand" ? "white" : "black",
-						border: "none",
-						borderRadius: "4px",
-						marginRight: "8px",
-						cursor: "pointer"
-					}}
-				>
-					手の検出
-				</button>
-				<button 
-					onClick={() => setActiveTab("face")}
-					style={{ 
-						padding: "8px 16px", 
-						backgroundColor: activeTab === "face" ? "#3498db" : "#f1f1f1",
-						color: activeTab === "face" ? "white" : "black",
-						border: "none",
-						borderRadius: "4px",
-						cursor: "pointer"
-					}}
-				>
-					顔の検出
-				</button>
-			</div>
-			
+		<div className="app-container" style={{
+			width: "100vw",
+			height: "100vh",
+			margin: 0,
+			padding: 0,
+			overflow: "hidden",
+			position: "relative",
+			fontFamily: "Arial, sans-serif",
+			backgroundColor: "#000",
+		}}>
+			{/* ビデオとキャンバスを全画面表示 */}
 			<div
 				style={{
-					position: "relative",
-					width: 640,
-					height: 480,
+					position: "absolute",
+					top: 0,
+					left: 0,
+					width: "100%",
+					height: "100%",
+					zIndex: 1,
 				}}
 			>
 				<video
@@ -286,6 +266,9 @@ function App() {
 						position: "absolute",
 						top: 0,
 						left: 0,
+						width: "100%",
+						height: "100%",
+						objectFit: "cover",
 					}}
 					ref={videoRef}
 					width="640"
@@ -297,13 +280,186 @@ function App() {
 						position: "absolute",
 						top: 0,
 						left: 0,
+						width: "100%",
+						height: "100%",
+						objectFit: "cover",
 					}}
 					ref={canvasRef}
 					width="640"
 					height="480"
 				/>
 			</div>
-		</>
+
+			{/* フローティングタイトル */}
+			<div style={{
+				position: "absolute",
+				top: "20px",
+				left: "20px",
+				zIndex: 10,
+				color: "white",
+				textShadow: "0 2px 4px rgba(0,0,0,0.5)",
+			}}>
+				<h1 style={{
+					margin: "0 0 4px 0",
+					fontSize: "24px",
+					fontWeight: "bold",
+				}}>AI姿勢検出デモ</h1>
+				<p style={{
+					margin: 0,
+					fontSize: "14px",
+					opacity: 0.8,
+				}}>TensorFlow.jsを使った手と顔の検出</p>
+			</div>
+
+			{/* フローティングタブ切り替え */}
+			<div style={{ 
+				position: "absolute",
+				top: "20px",
+				right: "20px",
+				zIndex: 10,
+				display: "flex",
+				gap: "12px",
+			}}>
+				<button 
+					onClick={() => setActiveTab("hand")}
+					style={{ 
+						padding: "8px 16px", 
+						backgroundColor: activeTab === "hand" ? "rgba(52, 152, 219, 0.9)" : "rgba(0, 0, 0, 0.6)",
+						color: "white",
+						border: "none",
+						borderRadius: "30px",
+						cursor: "pointer",
+						backdropFilter: "blur(4px)",
+						boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
+						display: "flex",
+						alignItems: "center",
+						fontWeight: activeTab === "hand" ? "bold" : "normal",
+						transition: "all 0.3s ease",
+					}}
+				>
+					<span style={{ marginRight: "6px" }}>✋</span> 手の検出
+				</button>
+				<button 
+					onClick={() => setActiveTab("face")}
+					style={{ 
+						padding: "8px 16px", 
+						backgroundColor: activeTab === "face" ? "rgba(52, 152, 219, 0.9)" : "rgba(0, 0, 0, 0.6)",
+						color: "white",
+						border: "none",
+						borderRadius: "30px",
+						cursor: "pointer",
+						backdropFilter: "blur(4px)",
+						boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
+						display: "flex",
+						alignItems: "center",
+						fontWeight: activeTab === "face" ? "bold" : "normal",
+						transition: "all 0.3s ease",
+					}}
+				>
+					<span style={{ marginRight: "6px" }}>😊</span> 顔の検出
+				</button>
+			</div>
+
+			{/* フローティングヒント */}
+			<div style={{ 
+				position: "absolute",
+				bottom: "20px",
+				left: "50%",
+				transform: "translateX(-50%)",
+				zIndex: 10,
+				padding: "10px 20px", 
+				backgroundColor: "rgba(0, 0, 0, 0.6)",
+				color: "white",
+				borderRadius: "30px",
+				backdropFilter: "blur(4px)",
+				boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
+				maxWidth: "80%",
+				textAlign: "center",
+			}}>
+				<p style={{ margin: "0" }}>
+					<strong>ヒント:</strong> {activeTab === "hand" 
+						? "両手を画面内に表示すると、関節と骨格が検出されます。" 
+						: "顔を画面内に表示すると、顔のランドマークが検出されます。"}
+				</p>
+			</div>
+
+			{/* カメラ許可通知 */}
+			{!isAllowed && (
+				<div style={{
+					position: "absolute",
+					top: "50%",
+					left: "50%",
+					transform: "translate(-50%, -50%)",
+					zIndex: 20,
+					backgroundColor: "rgba(220, 53, 69, 0.9)",
+					color: "white",
+					padding: "20px 30px",
+					borderRadius: "8px",
+					backdropFilter: "blur(10px)",
+					boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+					textAlign: "center",
+					minWidth: "300px",
+				}}>
+					<div style={{ fontSize: "32px", marginBottom: "10px" }}>📷</div>
+					<p style={{ margin: "0", fontWeight: "bold", fontSize: "16px" }}>カメラへのアクセスが必要です</p>
+					<p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>このアプリはカメラを使用して手と顔を検出します</p>
+				</div>
+			)}
+			
+			{/* ローディング表示 */}
+			{isLoading && (
+				<div style={{
+					position: "absolute",
+					top: "50%",
+					left: "50%",
+					transform: "translate(-50%, -50%)",
+					zIndex: 20,
+					backgroundColor: "rgba(0, 0, 0, 0.7)",
+					color: "white",
+					padding: "20px 30px",
+					borderRadius: "8px",
+					backdropFilter: "blur(10px)",
+					boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+					textAlign: "center",
+					display: "flex",
+					flexDirection: "column",
+					alignItems: "center",
+					justifyContent: "center",
+					minWidth: "200px",
+				}}>
+					<div style={{
+						border: "3px solid rgba(255, 255, 255, 0.1)",
+						borderTop: "3px solid #fff",
+						borderRadius: "50%",
+						width: "30px",
+						height: "30px",
+						animation: "spin 1s linear infinite",
+						marginBottom: "12px",
+					}} />
+					<p style={{ margin: "0", fontWeight: "bold" }}>モデルを読み込み中...</p>
+				</div>
+			)}
+			
+			<style>{`
+				@keyframes spin {
+					0% { transform: rotate(0deg); }
+					100% { transform: rotate(360deg); }
+				}
+				body {
+					margin: 0;
+					padding: 0;
+					overflow: hidden;
+				}
+				#root {
+					max-width: none !important;
+					width: 100vw;
+					height: 100vh;
+					margin: 0;
+					padding: 0;
+					overflow: hidden;
+				}
+			`}</style>
+		</div>
 	);
 }
 
