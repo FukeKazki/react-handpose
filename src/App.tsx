@@ -2,9 +2,10 @@ import { RefObject, useEffect, useRef, useState } from "react";
 import "./App.css";
 import * as handPoseDetection from "@tensorflow-models/hand-pose-detection";
 import * as faceLandmarksDetection from "@tensorflow-models/face-landmarks-detection";
+import * as poseDetection from "@tensorflow-models/pose-detection";
 import "@tensorflow/tfjs-backend-webgl";
 
-type TabType = "hand" | "face";
+type TabType = "hand" | "face" | "pose";
 
 const useVideo = (videoRef: RefObject<HTMLVideoElement>) => {
 	const [isAllowed, setIsAllowed] = useState(false);
@@ -221,6 +222,125 @@ const useFaceDetection = (
 	}
 };
 
+const usePoseDetection = (
+	videoRef: RefObject<HTMLVideoElement>,
+	canvasRef: RefObject<HTMLCanvasElement>,
+) => {
+	const [isLoading, setIsLoading] = useState(false);
+	const [model, setModel] = useState<poseDetection.PoseDetector>();
+
+	useEffect(() => {
+		const loadPoseDetection = async () => {
+			try {
+				const model = poseDetection.SupportedModels.MoveNet;
+				const detector = await poseDetection.createDetector(
+					model,
+					{
+						modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER,
+						enableSmoothing: true, // スムージングを有効化
+					}
+				);
+				setModel(detector);
+			} catch (error) {
+				console.error("ポーズ検出モデルの読み込みエラー:", error);
+			}
+		};
+
+		setIsLoading(true);
+		loadPoseDetection().finally(() => {
+			setIsLoading(false);
+		});
+	}, []);
+
+	useEffect(() => {
+		// 骨格の接続定義
+		const connections = [
+			// 顔
+			['nose', 'left_eye'],
+			['nose', 'right_eye'],
+			['left_eye', 'left_ear'],
+			['right_eye', 'right_ear'],
+			// 上半身
+			['left_shoulder', 'right_shoulder'],
+			['left_shoulder', 'left_elbow'],
+			['right_shoulder', 'right_elbow'],
+			['left_elbow', 'left_wrist'],
+			['right_elbow', 'right_wrist'],
+			// 下半身
+			['left_shoulder', 'left_hip'],
+			['right_shoulder', 'right_hip'],
+			['left_hip', 'right_hip'],
+			['left_hip', 'left_knee'],
+			['right_hip', 'right_knee'],
+			['left_knee', 'left_ankle'],
+			['right_knee', 'right_ankle'],
+		];
+
+		const detect = async () => {
+			if (!model) return;
+			if (!videoRef.current) return;
+			if (!canvasRef.current) return;
+
+			try {
+				const poses = await model.estimatePoses(videoRef.current);
+				
+				const ctx = canvasRef.current.getContext("2d");
+				if (!ctx) return;
+
+				ctx.clearRect(0, 0, 640, 480);
+
+				for (const pose of poses) {
+					const keypoints = pose.keypoints;
+					
+					// キーポイントの描画
+					for (const keypoint of keypoints) {
+						if (keypoint.score && keypoint.score > 0.3) { // 信頼度が30%以上のポイントのみ描画
+							const { x, y } = keypoint;
+							ctx.beginPath();
+							ctx.arc(x, y, 6, 0, 3 * Math.PI);
+							ctx.fillStyle = "lime";
+							ctx.fill();
+						}
+					}
+					
+					// 骨格の線を描画
+					ctx.strokeStyle = "aqua";
+					ctx.lineWidth = 3;
+					
+					for (const [from, to] of connections) {
+						const fromPoint = keypoints.find(kp => kp.name === from);
+						const toPoint = keypoints.find(kp => kp.name === to);
+						
+						if (fromPoint && toPoint && 
+							fromPoint.score && toPoint.score && 
+							fromPoint.score > 0.3 && toPoint.score > 0.3) {
+							ctx.beginPath();
+							ctx.moveTo(fromPoint.x, fromPoint.y);
+							ctx.lineTo(toPoint.x, toPoint.y);
+							ctx.stroke();
+						}
+					}
+					
+					// 信頼度スコアの表示
+					ctx.font = "16px Arial";
+					ctx.fillStyle = "white";
+					const score = Math.round((pose.score || 0) * 100) / 100;
+					ctx.fillText(`信頼度: ${score}`, 20, 30);
+				}
+			} catch (error) {
+				console.error("ポーズ検出エラー:", error);
+			}
+		};
+
+		const interval = setInterval(detect, 100); // 0.1秒ごとに検出
+		return () => clearInterval(interval);
+	}, [model, videoRef, canvasRef]);
+
+	return {
+		isLoading,
+	}
+};
+
 function App() {
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -237,7 +357,15 @@ function App() {
 		activeTab === "face" ? canvasRef : { current: null }
 	);
 
-	const isLoading = activeTab === "hand" ? isHandLoading : isFaceLoading;
+	const { isLoading: isPoseLoading } = usePoseDetection(
+		activeTab === "pose" ? videoRef : { current: null },
+		activeTab === "pose" ? canvasRef : { current: null }
+	);
+
+	const isLoading = 
+		activeTab === "hand" ? isHandLoading : 
+		activeTab === "face" ? isFaceLoading : 
+		isPoseLoading;
 
 	return (
 		<div className="app-container" style={{
@@ -308,7 +436,7 @@ function App() {
 					margin: 0,
 					fontSize: "14px",
 					opacity: 0.8,
-				}}>TensorFlow.jsを使った手と顔の検出</p>
+				}}>TensorFlow.jsを使った手と顔とポーズの検出</p>
 			</div>
 
 			{/* フローティングタブ切り替え */}
@@ -358,6 +486,25 @@ function App() {
 				>
 					<span style={{ marginRight: "6px" }}>😊</span> 顔の検出
 				</button>
+				<button 
+					onClick={() => setActiveTab("pose")}
+					style={{ 
+						padding: "8px 16px", 
+						backgroundColor: activeTab === "pose" ? "rgba(52, 152, 219, 0.9)" : "rgba(0, 0, 0, 0.6)",
+						color: "white",
+						border: "none",
+						borderRadius: "30px",
+						cursor: "pointer",
+						backdropFilter: "blur(4px)",
+						boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
+						display: "flex",
+						alignItems: "center",
+						fontWeight: activeTab === "pose" ? "bold" : "normal",
+						transition: "all 0.3s ease",
+					}}
+				>
+					<span style={{ marginRight: "6px" }}>🏃</span> ポーズ検出
+				</button>
 			</div>
 
 			{/* フローティングヒント */}
@@ -377,9 +524,11 @@ function App() {
 				textAlign: "center",
 			}}>
 				<p style={{ margin: "0" }}>
-					<strong>ヒント:</strong> {activeTab === "hand" 
-						? "両手を画面内に表示すると、関節と骨格が検出されます。" 
-						: "顔を画面内に表示すると、顔のランドマークが検出されます。"}
+					<strong>ヒント:</strong> {
+						activeTab === "hand" ? "両手を画面内に表示すると、関節と骨格が検出されます。" : 
+						activeTab === "face" ? "顔を画面内に表示すると、顔のランドマークが検出されます。" :
+						"体全体を映すと、姿勢や動きが検出されます。"
+					}
 				</p>
 			</div>
 
