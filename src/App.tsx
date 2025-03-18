@@ -3,7 +3,15 @@ import "./App.css";
 import * as handPoseDetection from "@tensorflow-models/hand-pose-detection";
 import * as faceLandmarksDetection from "@tensorflow-models/face-landmarks-detection";
 import * as poseDetection from "@tensorflow-models/pose-detection";
+import * as tf from "@tensorflow/tfjs-core";
 import "@tensorflow/tfjs-backend-webgl";
+
+// アプリ起動時にTensorFlow.jsのバックエンドを初期化
+tf.setBackend('webgl').then(() => {
+	console.log('TensorFlow.js backend initialized:', tf.getBackend());
+}).catch(err => {
+	console.error('Failed to initialize TensorFlow.js backend:', err);
+});
 
 type TabType = "hand" | "face" | "pose";
 
@@ -40,6 +48,9 @@ const useHandpose = (
 	useEffect(() => {
 		const loadHandpose = async () => {
 			try {
+				// TensorFlowバックエンドの準備を確認
+				await tf.ready();
+				
 				// MediaPipeHandsモデルを使用
 				const model = handPoseDetection.SupportedModels.MediaPipeHands;
 				const detectorConfig = {
@@ -160,6 +171,9 @@ const useFaceDetection = (
 	useEffect(() => {
 		const loadFaceDetection = async () => {
 			try {
+				// TensorFlowバックエンドの準備を確認
+				await tf.ready();
+				
 				const model = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
 				const detectorConfig = {
 					runtime: 'tfjs',
@@ -232,6 +246,9 @@ const usePoseDetection = (
 	useEffect(() => {
 		const loadPoseDetection = async () => {
 			try {
+				// TensorFlowバックエンドの準備を確認
+				await tf.ready();
+				
 				const model = poseDetection.SupportedModels.MoveNet;
 				const detector = await poseDetection.createDetector(
 					model,
