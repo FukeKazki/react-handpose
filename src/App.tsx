@@ -15,32 +15,149 @@ tf.setBackend('webgl').then(() => {
 
 type TabType = "hand" | "face" | "pose";
 
-const useVideo = (videoRef: RefObject<HTMLVideoElement>) => {
+const useVideo = (
+	videoRef: RefObject<HTMLVideoElement>,
+	videoFile: File | null
+) => {
 	const [isAllowed, setIsAllowed] = useState(false);
-	useEffect(() => {
-		const setupCamera = async () => {
-			if (!videoRef.current) return;
-			if (navigator.mediaDevices.getUserMedia) {
-				const stream = await navigator.mediaDevices.getUserMedia({
-					video: true,
-				});
-				videoRef.current.srcObject = stream;
-			}
-		};
+	const [isVideoReady, setIsVideoReady] = useState(false);
 
-		setupCamera().then(() => {
-			setIsAllowed(true);
-		});
-	}, [videoRef]);
+	// ファイルが選択された場合の処理
+	useEffect(() => {
+		if (videoFile && videoRef.current) {
+			console.log("動画ファイルが選択されました:", videoFile.name);
+			
+			// カメラのストリームを停止
+			const mediaStream = videoRef.current.srcObject as MediaStream;
+			if (mediaStream) {
+				mediaStream.getTracks().forEach(track => {
+					track.stop();
+					console.log("カメラトラック停止:", track.kind);
+				});
+			}
+
+			// 動画の準備状態をリセット
+			setIsVideoReady(false);
+
+			try {
+				// ファイルからの動画を設定
+				const fileURL = URL.createObjectURL(videoFile);
+				console.log("動画ファイルURL:", fileURL);
+				
+				// video要素をリセット
+				videoRef.current.pause();
+				videoRef.current.removeAttribute('srcObject');
+				videoRef.current.srcObject = null;
+				videoRef.current.src = fileURL;
+				videoRef.current.muted = false;
+				videoRef.current.crossOrigin = "anonymous";
+				videoRef.current.load();
+				
+				console.log("動画要素設定完了");
+				
+				// メタデータが読み込まれたら準備完了とマーク
+				videoRef.current.onloadedmetadata = () => {
+					console.log("動画メタデータ読み込み完了:", videoRef.current?.videoWidth, "x", videoRef.current?.videoHeight);
+					
+					// メタデータが読み込まれた後、実際の再生開始
+					videoRef.current?.play().then(() => {
+						console.log("動画再生開始");
+						setIsVideoReady(true);
+					}).catch(err => {
+						console.error("動画再生エラー:", err);
+					});
+				};
+				
+				// 再生終了時にループ再生
+				videoRef.current.onended = () => {
+					console.log("動画再生終了、ループします");
+					if (videoRef.current) {
+						videoRef.current.currentTime = 0;
+						videoRef.current.play().catch(err => {
+							console.error("動画ループ再生エラー:", err);
+						});
+					}
+				};
+				
+				// エラーハンドリング
+				videoRef.current.onerror = (e) => {
+					console.error("動画読み込みエラー:", e);
+				};
+				
+				setIsAllowed(true);
+			} catch (error) {
+				console.error("動画設定エラー:", error);
+			}
+			
+			// クリーンアップ
+			return () => {
+				if (videoRef.current) {
+					const oldSrc = videoRef.current.src;
+					videoRef.current.onloadedmetadata = null;
+					videoRef.current.onended = null;
+					videoRef.current.onerror = null;
+					videoRef.current.pause();
+					videoRef.current.src = "";
+					videoRef.current.load();
+					if (oldSrc) {
+						URL.revokeObjectURL(oldSrc);
+					}
+					console.log("動画リソース解放");
+				}
+				setIsVideoReady(false);
+			};
+		} else if (!videoFile) {
+			// ファイルがない場合はカメラを使用
+			const setupCamera = async () => {
+				if (!videoRef.current) return;
+				try {
+					if (navigator.mediaDevices.getUserMedia) {
+						const stream = await navigator.mediaDevices.getUserMedia({
+							video: true,
+						});
+						videoRef.current.srcObject = stream;
+						videoRef.current.muted = true; // カメラ映像はミュート
+						
+						// カメラのメタデータが読み込まれたら準備完了とマーク
+						videoRef.current.onloadedmetadata = () => {
+							console.log("カメラ映像メタデータ読み込み完了");
+							setIsVideoReady(true);
+						};
+					}
+					setIsAllowed(true);
+				} catch (err) {
+					console.error("カメラアクセスエラー:", err);
+					setIsAllowed(false);
+				}
+			};
+
+			setupCamera();
+			
+			// クリーンアップ
+			return () => {
+				if (videoRef.current) {
+					videoRef.current.onloadedmetadata = null;
+					videoRef.current.onloadeddata = null;
+					if (videoRef.current.srcObject) {
+						const mediaStream = videoRef.current.srcObject as MediaStream;
+						mediaStream.getTracks().forEach(track => track.stop());
+					}
+				}
+				setIsVideoReady(false);
+			};
+		}
+	}, [videoRef, videoFile]);
 
 	return {
 		isAllowed,
+		isVideoReady,
 	}
 };
 
 const useHandpose = (
 	videoRef: RefObject<HTMLVideoElement>,
 	canvasRef: RefObject<HTMLCanvasElement>,
+	isVideoReady: boolean,
 ) => {
 	const [isLoading, setIsLoading] = useState(false);
 	const [model, setModel] = useState<handPoseDetection.HandDetector>();
@@ -95,15 +212,28 @@ const useHandpose = (
 		const detect = async () => {
 			if (!model) return;
 			if (!videoRef.current) return;
+			if (!isVideoReady) return; // 動画が準備できていなければ検出しない
 			
 			try {
+				// 動画のサイズチェック
+				if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
+					console.log("動画サイズが無効です。スキップします。");
+					return;
+				}
+				
+				// キャンバスサイズを動画サイズに合わせる
+				if (canvasRef.current) {
+					canvasRef.current.width = videoRef.current.videoWidth;
+					canvasRef.current.height = videoRef.current.videoHeight;
+				}
+
 				const hands = await model.estimateHands(videoRef.current);
 
 				if (!canvasRef.current) return;
 				const ctx = canvasRef.current.getContext("2d");
 				if (!ctx) return;
 
-				ctx.clearRect(0, 0, 640, 480);
+				ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
 				// 検出された各手について処理
 				for (let i = 0; i < hands.length; i++) {
@@ -154,7 +284,7 @@ const useHandpose = (
 
 		const interval = setInterval(detect, 100); // 0.1秒ごとに検出
 		return () => clearInterval(interval);
-	}, [model, videoRef, canvasRef]);
+	}, [model, videoRef, canvasRef, isVideoReady]);
 
 	return {
 		isLoading,
@@ -164,6 +294,7 @@ const useHandpose = (
 const useFaceDetection = (
 	videoRef: RefObject<HTMLVideoElement>,
 	canvasRef: RefObject<HTMLCanvasElement>,
+	isVideoReady: boolean,
 ) => {
 	const [isLoading, setIsLoading] = useState(false);
 	const [model, setModel] = useState<faceLandmarksDetection.FaceLandmarksDetector>();
@@ -201,14 +332,25 @@ const useFaceDetection = (
 			if (!model) return;
 			if (!videoRef.current) return;
 			if (!canvasRef.current) return;
-
+			if (!isVideoReady) return; // 動画が準備できていなければ検出しない
+			
 			try {
+				// 動画のサイズチェック
+				if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
+					console.log("動画サイズが無効です。スキップします。");
+					return;
+				}
+				
+				// キャンバスサイズを動画サイズに合わせる
+				canvasRef.current.width = videoRef.current.videoWidth;
+				canvasRef.current.height = videoRef.current.videoHeight;
+				
 				const faces = await model.estimateFaces(videoRef.current);
 				
 				const ctx = canvasRef.current.getContext("2d");
 				if (!ctx) return;
 
-				ctx.clearRect(0, 0, 640, 480);
+				ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
 				for (let i = 0; i < faces.length; i++) {
 					const face = faces[i];
@@ -229,7 +371,7 @@ const useFaceDetection = (
 
 		const interval = setInterval(detect, 100); // 0.1秒ごとに検出
 		return () => clearInterval(interval);
-	}, [model, videoRef, canvasRef]);
+	}, [model, videoRef, canvasRef, isVideoReady]);
 
 	return {
 		isLoading,
@@ -239,6 +381,7 @@ const useFaceDetection = (
 const usePoseDetection = (
 	videoRef: RefObject<HTMLVideoElement>,
 	canvasRef: RefObject<HTMLCanvasElement>,
+	isVideoReady: boolean,
 ) => {
 	const [isLoading, setIsLoading] = useState(false);
 	const [model, setModel] = useState<poseDetection.PoseDetector>();
@@ -297,14 +440,25 @@ const usePoseDetection = (
 			if (!model) return;
 			if (!videoRef.current) return;
 			if (!canvasRef.current) return;
-
+			if (!isVideoReady) return; // 動画が準備できていなければ検出しない
+			
 			try {
+				// 動画のサイズチェック
+				if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
+					console.log("動画サイズが無効です。スキップします。");
+					return;
+				}
+				
+				// キャンバスサイズを動画サイズに合わせる
+				canvasRef.current.width = videoRef.current.videoWidth;
+				canvasRef.current.height = videoRef.current.videoHeight;
+				
 				const poses = await model.estimatePoses(videoRef.current);
 				
 				const ctx = canvasRef.current.getContext("2d");
 				if (!ctx) return;
 
-				ctx.clearRect(0, 0, 640, 480);
+				ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
 				for (const pose of poses) {
 					const keypoints = pose.keypoints;
@@ -351,7 +505,7 @@ const usePoseDetection = (
 
 		const interval = setInterval(detect, 100); // 0.1秒ごとに検出
 		return () => clearInterval(interval);
-	}, [model, videoRef, canvasRef]);
+	}, [model, videoRef, canvasRef, isVideoReady]);
 
 	return {
 		isLoading,
@@ -361,28 +515,51 @@ const usePoseDetection = (
 function App() {
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
-	const { isAllowed } = useVideo(videoRef);
+	const [videoFile, setVideoFile] = useState<File | null>(null);
+	const { isAllowed, isVideoReady } = useVideo(videoRef, videoFile);
 	const [activeTab, setActiveTab] = useState<TabType>("face");
 	
 	const { isLoading: isHandLoading } = useHandpose(
 		activeTab === "hand" ? videoRef : { current: null },
-		activeTab === "hand" ? canvasRef : { current: null }
+		activeTab === "hand" ? canvasRef : { current: null },
+		isVideoReady
 	);
 	
 	const { isLoading: isFaceLoading } = useFaceDetection(
 		activeTab === "face" ? videoRef : { current: null },
-		activeTab === "face" ? canvasRef : { current: null }
+		activeTab === "face" ? canvasRef : { current: null },
+		isVideoReady
 	);
 
 	const { isLoading: isPoseLoading } = usePoseDetection(
 		activeTab === "pose" ? videoRef : { current: null },
-		activeTab === "pose" ? canvasRef : { current: null }
+		activeTab === "pose" ? canvasRef : { current: null },
+		isVideoReady
 	);
 
 	const isLoading = 
 		activeTab === "hand" ? isHandLoading : 
 		activeTab === "face" ? isFaceLoading : 
 		isPoseLoading;
+
+	// ファイル選択ハンドラー
+	const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+		const files = event.target.files;
+		if (files && files.length > 0) {
+			const file = files[0];
+			// ファイルがビデオかどうかをチェック
+			if (file.type.startsWith('video/')) {
+				setVideoFile(file);
+			} else {
+				alert('動画ファイルを選択してください');
+			}
+		}
+	};
+
+	// ファイル選択をリセット
+	const resetVideo = () => {
+		setVideoFile(null);
+	};
 
 	return (
 		<div className="app-container" style={{
@@ -419,6 +596,7 @@ function App() {
 					width="640"
 					height="480"
 					autoPlay
+					playsInline
 				/>
 				<canvas
 					style={{
@@ -428,10 +606,9 @@ function App() {
 						width: "100%",
 						height: "100%",
 						objectFit: "cover",
+						pointerEvents: "none", // キャンバスを操作不可に
 					}}
 					ref={canvasRef}
-					width="640"
-					height="480"
 				/>
 			</div>
 
@@ -548,6 +725,105 @@ function App() {
 					}
 				</p>
 			</div>
+
+			{/* ファイル入力UI */}
+			<div style={{ 
+				position: "absolute",
+				bottom: "80px",
+				left: "50%",
+				transform: "translateX(-50%)",
+				zIndex: 10,
+				padding: "10px 20px", 
+				backgroundColor: "rgba(0, 0, 0, 0.6)",
+				color: "white",
+				borderRadius: "30px",
+				backdropFilter: "blur(4px)",
+				boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
+				display: "flex",
+				alignItems: "center",
+				gap: "10px",
+			}}>
+				{videoFile ? (
+					<>
+						<span>{videoFile.name}</span>
+						<button
+							onClick={resetVideo}
+							style={{
+								backgroundColor: "rgba(220, 53, 69, 0.7)",
+								color: "white",
+								border: "none",
+								borderRadius: "20px",
+								padding: "6px 12px",
+								cursor: "pointer",
+								display: "flex",
+								alignItems: "center",
+								gap: "5px",
+							}}
+						>
+							<span>✖</span> キャンセル
+						</button>
+					</>
+				) : (
+					<>
+						<label
+							htmlFor="video-upload"
+							style={{
+								backgroundColor: "rgba(52, 152, 219, 0.7)",
+								color: "white",
+								borderRadius: "20px",
+								padding: "6px 12px",
+								cursor: "pointer",
+								display: "flex",
+								alignItems: "center",
+								gap: "5px",
+							}}
+						>
+							<span>📁</span> 動画ファイルを選択
+						</label>
+						<input
+							id="video-upload"
+							type="file"
+							accept="video/*"
+							onChange={handleFileChange}
+							style={{ display: "none" }}
+						/>
+					</>
+				)}
+			</div>
+
+			{/* 動画読み込み状態の表示 */}
+			{videoFile && !isVideoReady && (
+				<div style={{
+					position: "absolute",
+					top: "50%",
+					left: "50%",
+					transform: "translate(-50%, -50%)",
+					zIndex: 20,
+					backgroundColor: "rgba(0, 0, 0, 0.7)",
+					color: "white",
+					padding: "20px 30px",
+					borderRadius: "8px",
+					backdropFilter: "blur(10px)",
+					boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+					textAlign: "center",
+					display: "flex",
+					flexDirection: "column",
+					alignItems: "center",
+					justifyContent: "center",
+					minWidth: "200px",
+				}}>
+					<div style={{
+						border: "3px solid rgba(255, 255, 255, 0.1)",
+						borderTop: "3px solid #fff",
+						borderRadius: "50%",
+						width: "30px",
+						height: "30px",
+						animation: "spin 1s linear infinite",
+						marginBottom: "12px",
+					}} />
+					<p style={{ margin: "0", fontWeight: "bold" }}>動画を読み込み中...</p>
+				</div>
+			)}
 
 			{/* カメラ許可通知 */}
 			{!isAllowed && (
