@@ -393,10 +393,11 @@ const usePoseDetection = (
 				await tf.ready();
 				
 				const model = poseDetection.SupportedModels.MoveNet;
+				// 複数人検出用のモデルを設定
 				const detector = await poseDetection.createDetector(
 					model,
 					{
-						modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER,
+						modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING,
 						enableSmoothing: true, // スムージングを有効化
 					}
 				);
@@ -436,6 +437,15 @@ const usePoseDetection = (
 			['right_knee', 'right_ankle'],
 		];
 
+		// 各ポーズに異なる色を割り当てるための配列
+		const colors = [
+			{ point: "lime", line: "aqua" },      // 1人目: 薄緑と水色
+			{ point: "magenta", line: "yellow" },  // 2人目: マゼンタと黄色
+			{ point: "orange", line: "red" },      // 3人目: オレンジと赤
+			{ point: "cyan", line: "blue" },       // 4人目: シアンと青
+			{ point: "white", line: "green" }      // 5人目: 白と緑
+		];
+
 		const detect = async () => {
 			if (!model) return;
 			if (!videoRef.current) return;
@@ -460,23 +470,31 @@ const usePoseDetection = (
 
 				ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
-				for (const pose of poses) {
+				// 検出された人数を表示
+				ctx.font = "16px Arial";
+				ctx.fillStyle = "white";
+				ctx.fillText(`検出された人数: ${poses.length}人`, 20, 30);
+
+				// 各検出されたポーズを処理
+				for (let i = 0; i < poses.length; i++) {
+					const pose = poses[i];
 					const keypoints = pose.keypoints;
-					
+					const colorSet = colors[i % colors.length]; // 人数に応じて色を循環使用
+
 					// キーポイントの描画
 					for (const keypoint of keypoints) {
 						if (keypoint.score && keypoint.score > 0.3) { // 信頼度が30%以上のポイントのみ描画
 							const { x, y } = keypoint;
 							ctx.beginPath();
 							ctx.arc(x, y, 6, 0, 3 * Math.PI);
-							ctx.fillStyle = "lime";
+							ctx.fillStyle = colorSet.point;
 							ctx.fill();
 						}
 					}
 					
 					// 骨格の線を描画
-					ctx.strokeStyle = "aqua";
 					ctx.lineWidth = 3;
+					ctx.strokeStyle = colorSet.line;
 					
 					for (const [from, to] of connections) {
 						const fromPoint = keypoints.find(kp => kp.name === from);
@@ -494,9 +512,10 @@ const usePoseDetection = (
 					
 					// 信頼度スコアの表示
 					ctx.font = "16px Arial";
-					ctx.fillStyle = "white";
+					ctx.fillStyle = colorSet.point;
 					const score = Math.round((pose.score || 0) * 100) / 100;
-					ctx.fillText(`信頼度: ${score}`, 20, 30);
+					// 各人のスコアを表示（少しずつ位置をずらす）
+					ctx.fillText(`ID ${i+1} 信頼度: ${score}`, 20, 60 + i * 25);
 				}
 			} catch (error) {
 				console.error("ポーズ検出エラー:", error);
@@ -721,7 +740,7 @@ function App() {
 					<strong>ヒント:</strong> {
 						activeTab === "hand" ? "両手を画面内に表示すると、関節と骨格が検出されます。" : 
 						activeTab === "face" ? "顔を画面内に表示すると、顔のランドマークが検出されます。" :
-						"体全体を映すと、姿勢や動きが検出されます。"
+						"複数人の姿勢も検出できます。それぞれ異なる色で表示されます。"
 					}
 				</p>
 			</div>
