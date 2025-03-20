@@ -580,6 +580,24 @@ function App() {
 		setVideoFile(null);
 	};
 
+	// ビューポートの幅を監視するためのstate
+	const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+	// ウィンドウサイズの変更を監視
+	useEffect(() => {
+		const handleResize = () => {
+			setWindowWidth(window.innerWidth);
+		};
+		
+		window.addEventListener('resize', handleResize);
+		return () => {
+			window.removeEventListener('resize', handleResize);
+		};
+	}, []);
+
+	// モバイル表示かどうかの判定
+	const isMobile = windowWidth <= 768;
+
 	return (
 		<div className="app-container" style={{
 			width: "100vw",
@@ -634,20 +652,20 @@ function App() {
 			{/* フローティングタイトル */}
 			<div style={{
 				position: "absolute",
-				top: "20px",
-				left: "20px",
+				top: isMobile ? "10px" : "20px",
+				left: isMobile ? "10px" : "20px",
 				zIndex: 10,
 				color: "white",
 				textShadow: "0 2px 4px rgba(0,0,0,0.5)",
 			}}>
 				<h1 style={{
 					margin: "0 0 4px 0",
-					fontSize: "24px",
+					fontSize: isMobile ? "18px" : "24px",
 					fontWeight: "bold",
 				}}>AI姿勢検出デモ</h1>
 				<p style={{
 					margin: 0,
-					fontSize: "14px",
+					fontSize: isMobile ? "12px" : "14px",
 					opacity: 0.8,
 				}}>TensorFlow.jsを使った手と顔とポーズの検出</p>
 			</div>
@@ -655,16 +673,17 @@ function App() {
 			{/* フローティングタブ切り替え */}
 			<div style={{ 
 				position: "absolute",
-				top: "20px",
-				right: "20px",
+				top: isMobile ? "10px" : "20px",
+				right: isMobile ? "10px" : "20px",
 				zIndex: 10,
 				display: "flex",
-				gap: "12px",
+				flexDirection: isMobile ? "column" : "row",
+				gap: isMobile ? "8px" : "12px",
 			}}>
 				<button 
 					onClick={() => setActiveTab("hand")}
 					style={{ 
-						padding: "8px 16px", 
+						padding: isMobile ? "6px 12px" : "8px 16px", 
 						backgroundColor: activeTab === "hand" ? "rgba(52, 152, 219, 0.9)" : "rgba(0, 0, 0, 0.6)",
 						color: "white",
 						border: "none",
@@ -675,6 +694,7 @@ function App() {
 						display: "flex",
 						alignItems: "center",
 						fontWeight: activeTab === "hand" ? "bold" : "normal",
+						fontSize: isMobile ? "13px" : "15px",
 						transition: "all 0.3s ease",
 					}}
 				>
@@ -683,7 +703,7 @@ function App() {
 				<button 
 					onClick={() => setActiveTab("face")}
 					style={{ 
-						padding: "8px 16px", 
+						padding: isMobile ? "6px 12px" : "8px 16px", 
 						backgroundColor: activeTab === "face" ? "rgba(52, 152, 219, 0.9)" : "rgba(0, 0, 0, 0.6)",
 						color: "white",
 						border: "none",
@@ -694,6 +714,7 @@ function App() {
 						display: "flex",
 						alignItems: "center",
 						fontWeight: activeTab === "face" ? "bold" : "normal",
+						fontSize: isMobile ? "13px" : "15px",
 						transition: "all 0.3s ease",
 					}}
 				>
@@ -702,7 +723,7 @@ function App() {
 				<button 
 					onClick={() => setActiveTab("pose")}
 					style={{ 
-						padding: "8px 16px", 
+						padding: isMobile ? "6px 12px" : "8px 16px", 
 						backgroundColor: activeTab === "pose" ? "rgba(52, 152, 219, 0.9)" : "rgba(0, 0, 0, 0.6)",
 						color: "white",
 						border: "none",
@@ -713,6 +734,7 @@ function App() {
 						display: "flex",
 						alignItems: "center",
 						fontWeight: activeTab === "pose" ? "bold" : "normal",
+						fontSize: isMobile ? "13px" : "15px",
 						transition: "all 0.3s ease",
 					}}
 				>
@@ -723,20 +745,20 @@ function App() {
 			{/* フローティングヒント */}
 			<div style={{ 
 				position: "absolute",
-				bottom: "20px",
+				bottom: isMobile ? "140px" : "20px",
 				left: "50%",
 				transform: "translateX(-50%)",
 				zIndex: 10,
-				padding: "10px 20px", 
+				padding: isMobile ? "8px 16px" : "10px 20px", 
 				backgroundColor: "rgba(0, 0, 0, 0.6)",
 				color: "white",
 				borderRadius: "30px",
 				backdropFilter: "blur(4px)",
 				boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
-				maxWidth: "80%",
+				maxWidth: isMobile ? "90%" : "80%",
 				textAlign: "center",
 			}}>
-				<p style={{ margin: "0" }}>
+				<p style={{ margin: "0", fontSize: isMobile ? "13px" : "15px" }}>
 					<strong>ヒント:</strong> {
 						activeTab === "hand" ? "両手を画面内に表示すると、関節と骨格が検出されます。" : 
 						activeTab === "face" ? "顔を画面内に表示すると、顔のランドマークが検出されます。" :
@@ -748,23 +770,32 @@ function App() {
 			{/* ファイル入力UI */}
 			<div style={{ 
 				position: "absolute",
-				bottom: "80px",
+				bottom: isMobile ? "80px" : "80px",
 				left: "50%",
 				transform: "translateX(-50%)",
 				zIndex: 10,
-				padding: "10px 20px", 
+				padding: isMobile ? "8px 16px" : "10px 20px", 
 				backgroundColor: "rgba(0, 0, 0, 0.6)",
 				color: "white",
 				borderRadius: "30px",
 				backdropFilter: "blur(4px)",
 				boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
 				display: "flex",
+				flexDirection: isMobile && videoFile ? "column" : "row",
 				alignItems: "center",
 				gap: "10px",
+				width: isMobile ? "auto" : "auto",
+				maxWidth: isMobile ? "90%" : "auto",
 			}}>
 				{videoFile ? (
 					<>
-						<span>{videoFile.name}</span>
+						<span style={{ 
+							fontSize: isMobile ? "13px" : "15px",
+							whiteSpace: "nowrap",
+							overflow: "hidden",
+							textOverflow: "ellipsis",
+							maxWidth: isMobile ? "200px" : "300px",
+						}}>{videoFile.name}</span>
 						<button
 							onClick={resetVideo}
 							style={{
@@ -772,11 +803,13 @@ function App() {
 								color: "white",
 								border: "none",
 								borderRadius: "20px",
-								padding: "6px 12px",
+								padding: isMobile ? "5px 10px" : "6px 12px",
 								cursor: "pointer",
 								display: "flex",
 								alignItems: "center",
 								gap: "5px",
+								fontSize: isMobile ? "13px" : "15px",
+								marginTop: isMobile ? "8px" : "0",
 							}}
 						>
 							<span>✖</span> キャンセル
@@ -790,11 +823,12 @@ function App() {
 								backgroundColor: "rgba(52, 152, 219, 0.7)",
 								color: "white",
 								borderRadius: "20px",
-								padding: "6px 12px",
+								padding: isMobile ? "5px 10px" : "6px 12px",
 								cursor: "pointer",
 								display: "flex",
 								alignItems: "center",
 								gap: "5px",
+								fontSize: isMobile ? "13px" : "15px",
 							}}
 						>
 							<span>📁</span> 動画ファイルを選択
@@ -810,40 +844,6 @@ function App() {
 				)}
 			</div>
 
-			{/* 動画読み込み状態の表示 */}
-			{videoFile && !isVideoReady && (
-				<div style={{
-					position: "absolute",
-					top: "50%",
-					left: "50%",
-					transform: "translate(-50%, -50%)",
-					zIndex: 20,
-					backgroundColor: "rgba(0, 0, 0, 0.7)",
-					color: "white",
-					padding: "20px 30px",
-					borderRadius: "8px",
-					backdropFilter: "blur(10px)",
-					boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
-					textAlign: "center",
-					display: "flex",
-					flexDirection: "column",
-					alignItems: "center",
-					justifyContent: "center",
-					minWidth: "200px",
-				}}>
-					<div style={{
-						border: "3px solid rgba(255, 255, 255, 0.1)",
-						borderTop: "3px solid #fff",
-						borderRadius: "50%",
-						width: "30px",
-						height: "30px",
-						animation: "spin 1s linear infinite",
-						marginBottom: "12px",
-					}} />
-					<p style={{ margin: "0", fontWeight: "bold" }}>動画を読み込み中...</p>
-				</div>
-			)}
-
 			{/* カメラ許可通知 */}
 			{!isAllowed && (
 				<div style={{
@@ -854,16 +854,17 @@ function App() {
 					zIndex: 20,
 					backgroundColor: "rgba(220, 53, 69, 0.9)",
 					color: "white",
-					padding: "20px 30px",
+					padding: isMobile ? "15px 20px" : "20px 30px",
 					borderRadius: "8px",
 					backdropFilter: "blur(10px)",
 					boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
 					textAlign: "center",
-					minWidth: "300px",
+					width: isMobile ? "80%" : "auto",
+					minWidth: isMobile ? "auto" : "300px",
 				}}>
-					<div style={{ fontSize: "32px", marginBottom: "10px" }}>📷</div>
-					<p style={{ margin: "0", fontWeight: "bold", fontSize: "16px" }}>カメラへのアクセスが必要です</p>
-					<p style={{ margin: "8px 0 0 0", fontSize: "14px" }}>このアプリはカメラを使用して手と顔を検出します</p>
+					<div style={{ fontSize: isMobile ? "26px" : "32px", marginBottom: "10px" }}>📷</div>
+					<p style={{ margin: "0", fontWeight: "bold", fontSize: isMobile ? "15px" : "16px" }}>カメラへのアクセスが必要です</p>
+					<p style={{ margin: "8px 0 0 0", fontSize: isMobile ? "13px" : "14px" }}>このアプリはカメラを使用して手と顔を検出します</p>
 				</div>
 			)}
 			
@@ -877,7 +878,7 @@ function App() {
 					zIndex: 20,
 					backgroundColor: "rgba(0, 0, 0, 0.7)",
 					color: "white",
-					padding: "20px 30px",
+					padding: isMobile ? "15px 20px" : "20px 30px",
 					borderRadius: "8px",
 					backdropFilter: "blur(10px)",
 					boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
@@ -886,18 +887,54 @@ function App() {
 					flexDirection: "column",
 					alignItems: "center",
 					justifyContent: "center",
-					minWidth: "200px",
+					width: isMobile ? "auto" : "auto",
+					minWidth: isMobile ? "auto" : "200px",
 				}}>
 					<div style={{
 						border: "3px solid rgba(255, 255, 255, 0.1)",
 						borderTop: "3px solid #fff",
 						borderRadius: "50%",
-						width: "30px",
-						height: "30px",
+						width: isMobile ? "25px" : "30px",
+						height: isMobile ? "25px" : "30px",
 						animation: "spin 1s linear infinite",
 						marginBottom: "12px",
 					}} />
-					<p style={{ margin: "0", fontWeight: "bold" }}>モデルを読み込み中...</p>
+					<p style={{ margin: "0", fontWeight: "bold", fontSize: isMobile ? "14px" : "16px" }}>モデルを読み込み中...</p>
+				</div>
+			)}
+			
+			{/* 動画読み込み状態の表示 */}
+			{videoFile && !isVideoReady && (
+				<div style={{
+					position: "absolute",
+					top: "50%",
+					left: "50%",
+					transform: "translate(-50%, -50%)",
+					zIndex: 20,
+					backgroundColor: "rgba(0, 0, 0, 0.7)",
+					color: "white",
+					padding: isMobile ? "15px 20px" : "20px 30px",
+					borderRadius: "8px",
+					backdropFilter: "blur(10px)",
+					boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+					textAlign: "center",
+					display: "flex",
+					flexDirection: "column",
+					alignItems: "center",
+					justifyContent: "center",
+					width: isMobile ? "auto" : "auto",
+					minWidth: isMobile ? "auto" : "200px",
+				}}>
+					<div style={{
+						border: "3px solid rgba(255, 255, 255, 0.1)",
+						borderTop: "3px solid #fff",
+						borderRadius: "50%",
+						width: isMobile ? "25px" : "30px",
+						height: isMobile ? "25px" : "30px",
+						animation: "spin 1s linear infinite",
+						marginBottom: "12px",
+					}} />
+					<p style={{ margin: "0", fontWeight: "bold", fontSize: isMobile ? "14px" : "16px" }}>動画を読み込み中...</p>
 				</div>
 			)}
 			
@@ -918,6 +955,14 @@ function App() {
 					margin: 0;
 					padding: 0;
 					overflow: hidden;
+				}
+				@media (max-width: 768px) {
+					button, label {
+						-webkit-tap-highlight-color: transparent;
+					}
+					button:active, label:active {
+						opacity: 0.8;
+					}
 				}
 			`}</style>
 		</div>
