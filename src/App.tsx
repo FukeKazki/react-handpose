@@ -298,6 +298,7 @@ const useFaceDetection = (
 ) => {
 	const [isLoading, setIsLoading] = useState(false);
 	const [model, setModel] = useState<faceLandmarksDetection.FaceLandmarksDetector>();
+	const [emotion, setEmotion] = useState<string>("検出中...");
 
 	useEffect(() => {
 		const loadFaceDetection = async () => {
@@ -308,7 +309,7 @@ const useFaceDetection = (
 				const model = faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh;
 				const detectorConfig = {
 					runtime: 'tfjs',
-					refineLandmarks: false,
+					refineLandmarks: true, // 詳細なランドマークを取得
 					maxFaces: 1
 				} as const;
 				const detector = await faceLandmarksDetection.createDetector(
@@ -326,6 +327,61 @@ const useFaceDetection = (
 			setIsLoading(false);
 		});
 	}, []);
+
+	// 表情検出関数
+	const detectEmotion = (keypoints: faceLandmarksDetection.Keypoint[]) => {
+		// 主要なランドマークのインデックス（MediaPipe Facemeshの場合）
+		// 口角のインデックス
+		const leftMouthCorner = keypoints.find(kp => kp.name === 'leftMouthCorner') || keypoints[61];
+		const rightMouthCorner = keypoints.find(kp => kp.name === 'rightMouthCorner') || keypoints[291];
+		
+		// 口の上下のインデックス
+		const upperLipTop = keypoints.find(kp => kp.name === 'upperLipTop') || keypoints[13];
+		const lowerLipBottom = keypoints.find(kp => kp.name === 'lowerLipBottom') || keypoints[14];
+		
+		// 目のインデックス
+		const leftEyeTop = keypoints.find(kp => kp.name === 'leftEyeTop') || keypoints[159];
+		const leftEyeBottom = keypoints.find(kp => kp.name === 'leftEyeBottom') || keypoints[145];
+		const rightEyeTop = keypoints.find(kp => kp.name === 'rightEyeTop') || keypoints[386];
+		const rightEyeBottom = keypoints.find(kp => kp.name === 'rightEyeBottom') || keypoints[374];
+		
+		// 笑顔の検出（口角が上がっているか）
+		const mouthCenter = {
+			x: (leftMouthCorner.x + rightMouthCorner.x) / 2,
+			y: (leftMouthCorner.y + rightMouthCorner.y) / 2
+		};
+		
+		// 口の開き具合
+		const mouthOpenness = Math.abs(upperLipTop.y - lowerLipBottom.y);
+		
+		// 口角の上がり具合（yが小さいほど上）
+		const leftCornerHeight = mouthCenter.y - leftMouthCorner.y;
+		const rightCornerHeight = mouthCenter.y - rightMouthCorner.y;
+		const averageCornerHeight = (leftCornerHeight + rightCornerHeight) / 2;
+		
+		// 目の開き具合
+		const leftEyeOpenness = Math.abs(leftEyeTop.y - leftEyeBottom.y);
+		const rightEyeOpenness = Math.abs(rightEyeTop.y - rightEyeBottom.y);
+		const averageEyeOpenness = (leftEyeOpenness + rightEyeOpenness) / 2;
+		
+		// 笑顔の判定（口角が上がっていて、目が少し細くなっている）
+		if (averageCornerHeight > 5 && mouthOpenness > 5) {
+			return "笑顔 😊";
+		}
+		
+		// 驚きの判定（目が大きく開いていて、口も開いている）
+		if (averageEyeOpenness > 15 && mouthOpenness > 10) {
+			return "驚き 😲";
+		}
+		
+		// 真面目な表情（口がほぼ閉じている、表情があまり変化していない）
+		if (mouthOpenness < 5) {
+			return "真面目 😐";
+		}
+		
+		// 十分な特徴がない場合
+		return "中立 😶";
+	};
 
 	useEffect(() => {
 		const detect = async () => {
@@ -356,13 +412,83 @@ const useFaceDetection = (
 					const face = faces[i];
 					const keypoints = face.keypoints;
 					
+					// 表情を検出
+					if (keypoints.length > 0) {
+						const detectedEmotion = detectEmotion(keypoints);
+						setEmotion(detectedEmotion);
+					}
+					
+					// ランドマークの描画
 					for (let j = 0; j < keypoints.length; j++) {
 						const { x, y } = keypoints[j];
 						ctx.beginPath();
-						ctx.arc(x, y, 2, 0, 3 * Math.PI);
+						ctx.arc(x, y, 1, 0, 3 * Math.PI);
 						ctx.fillStyle = "red";
 						ctx.fill();
 					}
+					
+					// 顔の中心と上部を計算
+					let faceTop = 50; // デフォルト値
+					let faceCenter = canvasRef.current.width / 2; // デフォルト値
+					
+					// 髪の生え際あたりのポイント (10番目あたり)を探す
+					const foreheadPoint = keypoints.find(kp => kp.name === 'foreheadMid') || keypoints[10];
+					if (foreheadPoint) {
+						faceTop = foreheadPoint.y - 40; // 額の少し上
+						faceCenter = foreheadPoint.x;
+					} else {
+						// 目の位置からも推定可能
+						const leftEye = keypoints.find(kp => kp.name === 'leftEye') || keypoints[159];
+						const rightEye = keypoints.find(kp => kp.name === 'rightEye') || keypoints[386];
+						
+						if (leftEye && rightEye) {
+							faceCenter = (leftEye.x + rightEye.x) / 2;
+							faceTop = Math.min(leftEye.y, rightEye.y) - 50;
+						}
+					}
+					
+					// 表示位置が画面外にならないよう調整
+					faceTop = Math.max(30, faceTop);
+					
+					// 表情の表示 - 顔の上部に表示
+					const emotionText = `${emotion}`;
+					ctx.font = "bold 24px Arial";
+					
+					// テキストの幅を取得してセンタリング
+					const textWidth = ctx.measureText(emotionText).width;
+					const textX = faceCenter - (textWidth / 2);
+					
+					// テキストに縁取りを追加して視認性を向上
+					ctx.strokeStyle = "black";
+					ctx.lineWidth = 3;
+					ctx.strokeText(emotionText, textX, faceTop);
+					
+					// テキスト
+					ctx.fillStyle = "white";
+					ctx.fillText(emotionText, textX, faceTop);
+				}
+				
+				// 顔が検出されない場合
+				if (faces.length === 0) {
+					setEmotion("顔が見つかりません");
+					
+					// 顔が見つからないメッセージを画面中央に表示
+					const noFaceText = `${emotion}`;
+					ctx.font = "bold 24px Arial";
+					
+					// テキストの幅を取得してセンタリング
+					const textWidth = ctx.measureText(noFaceText).width;
+					const textX = canvasRef.current.width / 2 - (textWidth / 2);
+					const textY = canvasRef.current.height / 2;
+					
+					// テキストに縁取りを追加して視認性を向上
+					ctx.strokeStyle = "black";
+					ctx.lineWidth = 3;
+					ctx.strokeText(noFaceText, textX, textY);
+					
+					// テキスト
+					ctx.fillStyle = "white";
+					ctx.fillText(noFaceText, textX, textY);
 				}
 			} catch (error) {
 				console.error("顔の検出エラー:", error);
@@ -371,10 +497,11 @@ const useFaceDetection = (
 
 		const interval = setInterval(detect, 100); // 0.1秒ごとに検出
 		return () => clearInterval(interval);
-	}, [model, videoRef, canvasRef, isVideoReady]);
+	}, [model, videoRef, canvasRef, isVideoReady, emotion]);
 
 	return {
 		isLoading,
+		emotion,
 	}
 };
 
@@ -544,7 +671,7 @@ function App() {
 		isVideoReady
 	);
 	
-	const { isLoading: isFaceLoading } = useFaceDetection(
+	const { isLoading: isFaceLoading, emotion: faceEmotion } = useFaceDetection(
 		activeTab === "face" ? videoRef : { current: null },
 		activeTab === "face" ? canvasRef : { current: null },
 		isVideoReady
@@ -761,7 +888,7 @@ function App() {
 				<p style={{ margin: "0", fontSize: isMobile ? "13px" : "15px" }}>
 					<strong>ヒント:</strong> {
 						activeTab === "hand" ? "両手を画面内に表示すると、関節と骨格が検出されます。" : 
-						activeTab === "face" ? "顔を画面内に表示すると、顔のランドマークが検出されます。" :
+						activeTab === "face" ? `顔を画面内に表示すると、顔のランドマークと表情が検出されます。` :
 						"複数人の姿勢も検出できます。それぞれ異なる色で表示されます。"
 					}
 				</p>
