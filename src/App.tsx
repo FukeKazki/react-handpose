@@ -345,6 +345,12 @@ const useFaceDetection = (
 		const rightEyeTop = keypoints.find(kp => kp.name === 'rightEyeTop') || keypoints[386];
 		const rightEyeBottom = keypoints.find(kp => kp.name === 'rightEyeBottom') || keypoints[374];
 		
+		// 眉毛のインデックス
+		const leftEyebrowTop = keypoints.find(kp => kp.name === 'leftEyebrowTop') || keypoints[66];
+		const rightEyebrowTop = keypoints.find(kp => kp.name === 'rightEyebrowTop') || keypoints[296];
+		const leftEyebrowBottom = keypoints.find(kp => kp.name === 'leftEyebrowBottom') || keypoints[65];
+		const rightEyebrowBottom = keypoints.find(kp => kp.name === 'rightEyebrowBottom') || keypoints[295];
+		
 		// 笑顔の検出（口角が上がっているか）
 		const mouthCenter = {
 			x: (leftMouthCorner.x + rightMouthCorner.x) / 2,
@@ -359,23 +365,73 @@ const useFaceDetection = (
 		const rightCornerHeight = mouthCenter.y - rightMouthCorner.y;
 		const averageCornerHeight = (leftCornerHeight + rightCornerHeight) / 2;
 		
+		// 口角の下がり具合（yが大きいほど下）
+		const leftCornerDropping = leftMouthCorner.y - mouthCenter.y;
+		const rightCornerDropping = rightMouthCorner.y - mouthCenter.y;
+		const averageCornerDropping = (leftCornerDropping + rightCornerDropping) / 2;
+		
 		// 目の開き具合
 		const leftEyeOpenness = Math.abs(leftEyeTop.y - leftEyeBottom.y);
 		const rightEyeOpenness = Math.abs(rightEyeTop.y - rightEyeBottom.y);
 		const averageEyeOpenness = (leftEyeOpenness + rightEyeOpenness) / 2;
 		
+		// 眉の位置と動き
+		const eyebrowHeight = (leftEyebrowTop.y + rightEyebrowTop.y) / 2;
+		const eyesHeight = (leftEyeTop.y + rightEyeTop.y) / 2;
+		const eyebrowEyeDistance = eyesHeight - eyebrowHeight;
+		
+		// 眉間の寄り具合
+		const eyebrowInnerDistance = Math.abs(leftEyebrowBottom.x - rightEyebrowBottom.x);
+		
+		// ウインクの検出
+		const isLeftWink = leftEyeOpenness < rightEyeOpenness * 0.4;
+		const isRightWink = rightEyeOpenness < leftEyeOpenness * 0.4;
+		
+		// 大喜びの検出（眉が上がり、口が大きく開き、口角も上がっている）
+		if (eyebrowEyeDistance > 15 && mouthOpenness > 15 && averageCornerHeight > 8) {
+			return "大喜び 🤩";
+		}
+		
 		// 笑顔の判定（口角が上がっていて、目が少し細くなっている）
-		if (averageCornerHeight > 5 && mouthOpenness > 5) {
+		if (averageCornerHeight > 5 && mouthOpenness > 3) {
 			return "笑顔 😊";
 		}
 		
-		// 驚きの判定（目が大きく開いていて、口も開いている）
-		if (averageEyeOpenness > 15 && mouthOpenness > 10) {
+		// ウインクの検出
+		if (isLeftWink && !isRightWink) {
+			return "左ウインク 😉";
+		}
+		if (isRightWink && !isLeftWink) {
+			return "右ウインク 😉";
+		}
+		
+		// 驚きの判定（目が大きく開いていて、口も開いている、眉も上がっている）
+		if (averageEyeOpenness > 15 && mouthOpenness > 10 && eyebrowEyeDistance > 12) {
 			return "驚き 😲";
 		}
 		
+		// 悲しみの判定（口角が下がっている、目が細い）
+		if (averageCornerDropping > 5 && averageEyeOpenness < 10) {
+			return "悲しみ 😢";
+		}
+		
+		// 怒りの判定（眉間が寄っている、口が開いている）
+		if (eyebrowInnerDistance < 60 && mouthOpenness > 5) {
+			return "怒り 😠";
+		}
+		
+		// 眠そうな表情（目が半分閉じている）
+		if (averageEyeOpenness < 7) {
+			return "眠い 😴";
+		}
+		
+		// 困惑/混乱（眉が上がっている、口が少し開いている）
+		if (eyebrowEyeDistance > 10 && mouthOpenness > 3 && mouthOpenness < 10) {
+			return "困惑 🤔";
+		}
+		
 		// 真面目な表情（口がほぼ閉じている、表情があまり変化していない）
-		if (mouthOpenness < 5) {
+		if (mouthOpenness < 5 && Math.abs(averageCornerHeight) < 3) {
 			return "真面目 😐";
 		}
 		
@@ -725,6 +781,20 @@ function App() {
 	// モバイル表示かどうかの判定
 	const isMobile = windowWidth <= 768;
 
+	// 表情一覧
+	const emotionList = [
+		{ name: "大喜び", emoji: "🤩" },
+		{ name: "笑顔", emoji: "😊" },
+		{ name: "左/右ウインク", emoji: "😉" },
+		{ name: "驚き", emoji: "😲" },
+		{ name: "悲しみ", emoji: "😢" },
+		{ name: "怒り", emoji: "😠" },
+		{ name: "眠い", emoji: "😴" },
+		{ name: "困惑", emoji: "🤔" },
+		{ name: "真面目", emoji: "😐" },
+		{ name: "中立", emoji: "😶" },
+	];
+
 	return (
 		<div className="app-container" style={{
 			width: "100vw",
@@ -869,6 +939,51 @@ function App() {
 				</button>
 			</div>
 
+			{/* 表情一覧フローティングUI - 顔検出タブでのみ表示 */}
+			{activeTab === "face" && (
+				<div style={{ 
+					position: "absolute",
+					top: "50%",
+					right: isMobile ? "5px" : "10px",
+					transform: "translateY(-50%)",
+					zIndex: 10,
+					padding: isMobile ? "6px 8px" : "8px 10px", 
+					backgroundColor: "rgba(0, 0, 0, 0.6)",
+					color: "white",
+					borderRadius: "8px",
+					backdropFilter: "blur(4px)",
+					boxShadow: "0 2px 8px rgba(0, 0, 0, 0.3)",
+					display: "flex",
+					flexDirection: "column",
+					gap: isMobile ? "4px" : "6px",
+					maxHeight: "50vh",
+					maxWidth: isMobile ? "100px" : "120px",
+					overflowY: "auto",
+				}}>
+					<div style={{ 
+						fontWeight: "bold", 
+						fontSize: isMobile ? "11px" : "13px",
+						textAlign: "center",
+						marginBottom: "2px",
+					}}>
+						表情一覧
+					</div>
+					{emotionList.map((emotion, index) => (
+						<div key={index} style={{ 
+							display: "flex", 
+							alignItems: "center", 
+							gap: "4px",
+							backgroundColor: faceEmotion.includes(emotion.name) ? "rgba(52, 152, 219, 0.3)" : "transparent",
+							padding: "2px 4px",
+							borderRadius: "4px",
+						}}>
+							<span style={{ fontSize: isMobile ? "12px" : "14px" }}>{emotion.emoji}</span>
+							<span style={{ fontSize: isMobile ? "10px" : "11px" }}>{emotion.name}</span>
+						</div>
+					))}
+				</div>
+			)}
+			
 			{/* フローティングヒント */}
 			<div style={{ 
 				position: "absolute",
@@ -888,7 +1003,7 @@ function App() {
 				<p style={{ margin: "0", fontSize: isMobile ? "13px" : "15px" }}>
 					<strong>ヒント:</strong> {
 						activeTab === "hand" ? "両手を画面内に表示すると、関節と骨格が検出されます。" : 
-						activeTab === "face" ? `顔を画面内に表示すると、顔のランドマークと表情が検出されます。` :
+						activeTab === "face" ? `顔を画面内に表示すると、顔のランドマークと表情が検出されます。(${faceEmotion})` :
 						"複数人の姿勢も検出できます。それぞれ異なる色で表示されます。"
 					}
 				</p>
