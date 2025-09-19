@@ -299,6 +299,11 @@ const useFaceDetection = (
 	const [isLoading, setIsLoading] = useState(false);
 	const [model, setModel] = useState<faceLandmarksDetection.FaceLandmarksDetector>();
 	const [emotion, setEmotion] = useState<string>("検出中...");
+	const [irisPosition, setIrisPosition] = useState<{ leftEye: string; rightEye: string; overall: string }>({
+		leftEye: "検出中",
+		rightEye: "検出中",
+		overall: "虹彩を検出中..."
+	});
 
 	useEffect(() => {
 		const loadFaceDetection = async () => {
@@ -327,6 +332,98 @@ const useFaceDetection = (
 			setIsLoading(false);
 		});
 	}, []);
+
+	// 虹彩位置検出関数
+	const detectIrisPosition = (keypoints: faceLandmarksDetection.Keypoint[]) => {
+		// MediaPipe FaceMeshの虹彩関連のランドマーク
+		// 左目虹彩: 468-472
+		// 右目虹彩: 473-477
+		const leftIrisCenter = keypoints[468]; // 左虹彩の中心
+		const rightIrisCenter = keypoints[473]; // 右虹彩の中心
+
+		// 目の端のランドマーク
+		const leftEyeInner = keypoints[133]; // 左目内側
+		const leftEyeOuter = keypoints[33];  // 左目外側
+		const rightEyeInner = keypoints[362]; // 右目内側
+		const rightEyeOuter = keypoints[263]; // 右目外側
+
+		// 目の上下のランドマーク
+		const leftEyeTop = keypoints[159];
+		const leftEyeBottom = keypoints[145];
+		const rightEyeTop = keypoints[386];
+		const rightEyeBottom = keypoints[374];
+
+		if (!leftIrisCenter || !rightIrisCenter) {
+			return {
+				leftEye: "検出中",
+				rightEye: "検出中",
+				overall: "虹彩を検出中..."
+			};
+		}
+
+		// 左目の虹彩位置を計算
+		const leftEyeWidth = Math.abs(leftEyeOuter.x - leftEyeInner.x);
+		const leftEyeHeight = Math.abs(leftEyeBottom.y - leftEyeTop.y);
+		const leftIrisRelativeX = (leftIrisCenter.x - leftEyeInner.x) / leftEyeWidth;
+		const leftIrisRelativeY = (leftIrisCenter.y - leftEyeTop.y) / leftEyeHeight;
+
+		// 右目の虹彩位置を計算
+		const rightEyeWidth = Math.abs(rightEyeOuter.x - rightEyeInner.x);
+		const rightEyeHeight = Math.abs(rightEyeBottom.y - rightEyeTop.y);
+		const rightIrisRelativeX = (rightIrisCenter.x - rightEyeInner.x) / rightEyeWidth;
+		const rightIrisRelativeY = (rightIrisCenter.y - rightEyeTop.y) / rightEyeHeight;
+
+		// 左目の方向を判定
+		let leftEyeDirection = "中央";
+		if (leftIrisRelativeX < 0.35) {
+			leftEyeDirection = "外側";
+		} else if (leftIrisRelativeX > 0.65) {
+			leftEyeDirection = "内側";
+		}
+
+		if (leftIrisRelativeY < 0.35) {
+			leftEyeDirection = leftEyeDirection === "中央" ? "上" : leftEyeDirection + "・上";
+		} else if (leftIrisRelativeY > 0.65) {
+			leftEyeDirection = leftEyeDirection === "中央" ? "下" : leftEyeDirection + "・下";
+		}
+
+		// 右目の方向を判定
+		let rightEyeDirection = "中央";
+		if (rightIrisRelativeX < 0.35) {
+			rightEyeDirection = "内側";
+		} else if (rightIrisRelativeX > 0.65) {
+			rightEyeDirection = "外側";
+		}
+
+		if (rightIrisRelativeY < 0.35) {
+			rightEyeDirection = rightEyeDirection === "中央" ? "上" : rightEyeDirection + "・上";
+		} else if (rightIrisRelativeY > 0.65) {
+			rightEyeDirection = rightEyeDirection === "中央" ? "下" : rightEyeDirection + "・下";
+		}
+
+		// 全体的な視線方向を判定
+		let overallDirection = "正面";
+		const avgX = (leftIrisRelativeX + rightIrisRelativeX) / 2;
+		const avgY = (leftIrisRelativeY + rightIrisRelativeY) / 2;
+
+		if (avgX < 0.35) {
+			overallDirection = "右";
+		} else if (avgX > 0.65) {
+			overallDirection = "左";
+		}
+
+		if (avgY < 0.35) {
+			overallDirection = overallDirection === "正面" ? "上" : overallDirection + "上";
+		} else if (avgY > 0.65) {
+			overallDirection = overallDirection === "正面" ? "下" : overallDirection + "下";
+		}
+
+		return {
+			leftEye: leftEyeDirection,
+			rightEye: rightEyeDirection,
+			overall: `視線: ${overallDirection}`
+		};
+	};
 
 	// 表情検出関数
 	const detectEmotion = (keypoints: faceLandmarksDetection.Keypoint[]) => {
@@ -468,18 +565,35 @@ const useFaceDetection = (
 					const face = faces[i];
 					const keypoints = face.keypoints;
 					
-					// 表情を検出
+					// 表情と虹彩位置を検出
 					if (keypoints.length > 0) {
 						const detectedEmotion = detectEmotion(keypoints);
 						setEmotion(detectedEmotion);
+
+						// 虹彩位置を検出
+						const detectedIris = detectIrisPosition(keypoints);
+						setIrisPosition(detectedIris);
 					}
 					
 					// ランドマークの描画
 					for (let j = 0; j < keypoints.length; j++) {
 						const { x, y } = keypoints[j];
 						ctx.beginPath();
-						ctx.arc(x, y, 1, 0, 3 * Math.PI);
-						ctx.fillStyle = "red";
+
+						// 虹彩関連のランドマークを強調表示
+						if (j >= 468 && j <= 477) {
+							// 虹彩のランドマーク（468-477）を黄色で大きく表示
+							ctx.arc(x, y, 3, 0, 3 * Math.PI);
+							ctx.fillStyle = "yellow";
+						} else if ([33, 133, 159, 145, 263, 362, 386, 374].includes(j)) {
+							// 目の端と上下のランドマークを青で表示
+							ctx.arc(x, y, 2, 0, 3 * Math.PI);
+							ctx.fillStyle = "cyan";
+						} else {
+							// その他のランドマーク
+							ctx.arc(x, y, 1, 0, 3 * Math.PI);
+							ctx.fillStyle = "red";
+						}
 						ctx.fill();
 					}
 					
@@ -509,19 +623,50 @@ const useFaceDetection = (
 					// 表情の表示 - 顔の上部に表示
 					const emotionText = `${emotion}`;
 					ctx.font = "bold 24px Arial";
-					
+
 					// テキストの幅を取得してセンタリング
 					const textWidth = ctx.measureText(emotionText).width;
 					const textX = faceCenter - (textWidth / 2);
-					
+
 					// テキストに縁取りを追加して視認性を向上
 					ctx.strokeStyle = "black";
 					ctx.lineWidth = 3;
 					ctx.strokeText(emotionText, textX, faceTop);
-					
+
 					// テキスト
 					ctx.fillStyle = "white";
 					ctx.fillText(emotionText, textX, faceTop);
+
+					// 虹彩位置の表示 - 表情の下に表示
+					const irisText = irisPosition.overall;
+					ctx.font = "bold 20px Arial";
+
+					const irisTextWidth = ctx.measureText(irisText).width;
+					const irisTextX = faceCenter - (irisTextWidth / 2);
+					const irisTextY = faceTop + 30;
+
+					// 縁取り
+					ctx.strokeStyle = "black";
+					ctx.lineWidth = 3;
+					ctx.strokeText(irisText, irisTextX, irisTextY);
+
+					// テキスト
+					ctx.fillStyle = "yellow";
+					ctx.fillText(irisText, irisTextX, irisTextY);
+
+					// 各目の詳細（小さく表示）
+					ctx.font = "14px Arial";
+					const detailText = `左目: ${irisPosition.leftEye} | 右目: ${irisPosition.rightEye}`;
+					const detailTextWidth = ctx.measureText(detailText).width;
+					const detailTextX = faceCenter - (detailTextWidth / 2);
+					const detailTextY = irisTextY + 20;
+
+					ctx.strokeStyle = "black";
+					ctx.lineWidth = 2;
+					ctx.strokeText(detailText, detailTextX, detailTextY);
+
+					ctx.fillStyle = "white";
+					ctx.fillText(detailText, detailTextX, detailTextY);
 				}
 				
 				// 顔が検出されない場合
@@ -553,11 +698,12 @@ const useFaceDetection = (
 
 		const interval = setInterval(detect, 100); // 0.1秒ごとに検出
 		return () => clearInterval(interval);
-	}, [model, videoRef, canvasRef, isVideoReady, emotion]);
+	}, [model, videoRef, canvasRef, isVideoReady, emotion, irisPosition]);
 
 	return {
 		isLoading,
 		emotion,
+		irisPosition,
 	}
 };
 
@@ -727,7 +873,7 @@ function App() {
 		isVideoReady
 	);
 	
-	const { isLoading: isFaceLoading, emotion: faceEmotion } = useFaceDetection(
+	const { isLoading: isFaceLoading, emotion: faceEmotion, irisPosition } = useFaceDetection(
 		activeTab === "face" ? videoRef : { current: null },
 		activeTab === "face" ? canvasRef : { current: null },
 		isVideoReady
@@ -1002,8 +1148,8 @@ function App() {
 			}}>
 				<p style={{ margin: "0", fontSize: isMobile ? "13px" : "15px" }}>
 					<strong>ヒント:</strong> {
-						activeTab === "hand" ? "両手を画面内に表示すると、関節と骨格が検出されます。" : 
-						activeTab === "face" ? `顔を画面内に表示すると、顔のランドマークと表情が検出されます。(${faceEmotion})` :
+						activeTab === "hand" ? "両手を画面内に表示すると、関節と骨格が検出されます。" :
+						activeTab === "face" ? `顔を画面内に表示すると、虹彩の位置と表情が検出されます。(${faceEmotion} / ${irisPosition.overall})` :
 						"複数人の姿勢も検出できます。それぞれ異なる色で表示されます。"
 					}
 				</p>
